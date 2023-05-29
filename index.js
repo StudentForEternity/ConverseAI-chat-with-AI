@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app"
-import { getDatabase, ref, push, get } from "firebase/database"
+import { getDatabase, ref, push, get, remove } from "firebase/database"
 import { Configuration, OpenAIApi } from "openai"
 import { process } from "./env"
 
@@ -18,7 +18,7 @@ const chatbotConversation = document.getElementById("chatbot-conversation")
 
 const instructionsObj = {
   role: "system",
-  content: `You are a highly sarcastic assistant that gives short answers.`,
+  content: `You are a highly sarcastic knowledgeable assistant that gives short answers.`,
 }
 
 document.addEventListener("submit", (e) => {
@@ -31,13 +31,17 @@ document.addEventListener("submit", (e) => {
 
   fetchReply()
 
+  userBubble(userInput.value)
+  userInput.value = ""
+})
+
+function userBubble(userIn) {
   const newSpeechBubble = document.createElement("div")
   newSpeechBubble.classList.add("speech", "speech-human")
   chatbotConversation.appendChild(newSpeechBubble)
-  newSpeechBubble.textContent = userInput.value
-  userInput.value = ""
+  newSpeechBubble.textContent = userIn
   chatbotConversation.scrollTop = chatbotConversation.scrollHeight
-})
+}
 
 function fetchReply() {
   get(conversationInDatabase).then(async (snapshot) => {
@@ -45,16 +49,21 @@ function fetchReply() {
       const conversationArr = Object.values(snapshot.val())
       conversationArr.unshift(instructionsObj)
 
-      const response = await openai.createChatCompletion({
-        model: "gpt-3.5-turbo",
-        messages: conversationArr,
-        presence_penalty: 1,
-        frequency_penalty: 0.2,
-      })
-
-      console.log(response.data.choices[0].message)
-      push(conversationInDatabase, response.data.choices[0].message)
-      renderTypewriterText(response.data.choices[0].message.content)
+      try {
+        const response = await openai.createChatCompletion({
+          model: "gpt-3.5-turbo",
+          messages: conversationArr,
+          presence_penalty: 1,
+          frequency_penalty: 0.2,
+        })
+        console.log(response.data.choices[0].message)
+        push(conversationInDatabase, response.data.choices[0].message)
+        renderTypewriterText(response.data.choices[0].message.content)
+      } catch (error) {
+        renderTypewriterText(
+          "Sorry, there was an error. Could you repeat the question?"
+        )
+      }
     } else {
       console.log("No data available in the Database...")
     }
@@ -76,3 +85,38 @@ function renderTypewriterText(text) {
     chatbotConversation.scrollTop = chatbotConversation.scrollHeight
   }, 50)
 }
+renderConversationFromDB()
+function renderConversationFromDB() {
+  get(conversationInDatabase).then(async (snapshot) => {
+    if (snapshot.exists()) {
+      Object.values(snapshot.val()).forEach((dbObj) => {
+        const newSpeechBubble = document.createElement("div")
+        newSpeechBubble.classList.add(
+          "speech",
+          `speech-${dbObj.role === "user" ? "human" : "ai"}`
+        )
+        chatbotConversation.appendChild(newSpeechBubble)
+        newSpeechBubble.textContent = dbObj.content
+      })
+      chatbotConversation.scrollTop = chatbotConversation.scrollHeight
+    }
+  })
+  // get(conversationInDatabase).then(async (snapshot) => {
+  //   if (snapshot.exists) {
+  //     const conversArr = Object.values(snapshot.val())
+  //     // console.log(conversArr)
+  //     conversArr.map((el) => {
+  //       if (el.role === "user") {
+  //         userBubble(el.content)
+  //       } else if (el.role === "assistant") {
+  //         renderTypewriterText(el.content)
+  //       }
+  //     })
+  //   }
+  // })
+}
+
+document.getElementById("clear-btn").addEventListener("click", () => {
+  remove(conversationInDatabase)
+  chatbotConversation.innerHTML = `<div class="speech speech-ai">How can I help you?</div>`
+})
