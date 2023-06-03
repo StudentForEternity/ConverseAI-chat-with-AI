@@ -4,7 +4,8 @@ import { Configuration, OpenAIApi } from "openai"
 import { process } from "./env"
 
 const appSettings = {
-  databaseURL: "",
+  databaseURL:
+    "https://converseai-intelligent-chatbot-default-rtdb.firebaseio.com/",
 }
 const app = initializeApp(appSettings)
 const database = getDatabase(app)
@@ -61,7 +62,7 @@ function fetchReply() {
         renderTypewriterText(response.data.choices[0].message.content)
       } catch (error) {
         renderTypewriterText(
-          "Sorry, there was an error. Could you repeat the question?"
+          "Sorry, there was an error. Would you please try again?"
         )
       }
     } else {
